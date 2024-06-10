@@ -2,6 +2,7 @@
 
 It identifies drug drug interactions based on Open FDA Information:
 
+````
 Example:
 ('Here is a concise bullet list summarizing the identified drug-drug '
  'interactions:\n'
@@ -22,3 +23,4 @@ Example:
  'with METFORMIN HYDROCHLORIDE (insulin secretagogue).\n'
  '• JARDIANCE (Empagliflozin) increases the risk of volume depletion when '
  'taken with Lisinopril (diuretic).')
+```
