@@ -38,6 +38,11 @@ else:
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC # Source Medical Claims
+
+# COMMAND ----------
+
 # Create a dataframe for the Catalog table
 catalog_table = spark.table("pharmacy_claim")
 
@@ -113,6 +118,11 @@ ndcs_to_rxnorms_udf = udf(ndcs_to_rxnorms, ArrayType(StringType()))
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC # Create Medication Regimens from Raw Claims Data
+
+# COMMAND ----------
+
 from pyspark.sql.functions import collect_list
 
 grouped_df = catalog_table.groupBy("patient_id").agg(collect_list("NDC").alias("NDCs"))
@@ -133,6 +143,11 @@ t_df['rxcuis'] = t_df['NDCs'].apply(ndcs_to_rxnorms)
 
 # Display the updated DataFrame
 t_df
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC # Enrich the data with RxNorms
 
 # COMMAND ----------
 
@@ -172,6 +187,11 @@ def fetch_drug_labels_information(rxcuis):
 # COMMAND ----------
 
 t_df['drug_labels'] = t_df['rxcuis'].apply(fetch_drug_labels_information)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC # Enrich with Clinical Information from the FDA API
 
 # COMMAND ----------
 
@@ -272,6 +292,15 @@ response = ChatCompletion.create(model="databricks-meta-llama-3-70b-instruct",
                                           {"role": "user","content": prompt}],
                                 max_tokens=4096)
 print(f"response.message:{response.message}")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC # Use LLM to Transform the Open FDA into Triples for a Knowledge Graph and LLM Consumpiton
+
+# COMMAND ----------
+
+t_df.head(1)
 
 # COMMAND ----------
 
@@ -450,4 +479,46 @@ c['recommendation'] = c.apply(lambda row: ddis_to_recommendations(row['list_of_d
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC # Use the LLM to determine Drug Drug Interactions using Triples from FDA and Refined by LLM (LLAMA3) and the Patient Drug List
+
+# COMMAND ----------
+
 c['recommendation'].head(2)
+
+# COMMAND ----------
+
+c.apply(lambda row: print(row['recommendation']), axis=1)
+
+# COMMAND ----------
+
+def summarize_ddis(drug_drug_interactions):
+    ddi_list = "/n".join(drug_drug_interactions)
+    prompt = f"""
+    Drug-Drug Interactions:
+    {ddi_list[0:4000]}
+    
+    Instructions:
+    Summarize provided instances of identified drug-drug interactions as a concise bullet list.
+    If there are no identified drug-drug interactions just return 'N/A' and no other text.
+    """
+
+    response = ChatCompletion.create(model="databricks-meta-llama-3-70b-instruct",
+                                    messages=[{"role": "system", "content": "You are a helpful assistant. "},
+                                            {"role": "user","content": prompt}],
+                                    max_tokens=6000)
+    time.sleep(1)
+    return response.message
+
+# COMMAND ----------
+
+
+
+# COMMAND ----------
+
+c['summary'] = c.apply(lambda row: summarize_ddis(row['recommendation']), axis=1)
+
+# COMMAND ----------
+
+from pprint import pprint
+c.apply(lambda row: pprint(row['summary']), axis=1)
